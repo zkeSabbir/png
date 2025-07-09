@@ -2,177 +2,91 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PNG Download Site with Firebase</title>
+  <title>PNG Upload & Download with Firebase</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen font-sans">
-  <div class="max-w-6xl mx-auto py-10 px-4">
-
-    <!-- Header -->
-    <header class="text-center mb-10">
-      <h1 class="text-4xl font-bold text-gray-800">Free PNG Gallery</h1>
-      <p class="text-gray-500 mt-2">Search, Preview and Download Transparent PNGs</p>
-    </header>
+<body class="bg-gray-100 min-h-screen p-6 font-sans">
+  <div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Upload PNG to Firebase</h1>
 
     <!-- Upload Section -->
-    <section class="mb-10">
-      <div class="bg-white p-6 rounded-xl shadow text-center">
-        <h2 class="text-xl font-semibold mb-4">Upload PNG Files</h2>
-        <input type="file" id="uploadInput" multiple accept="image/png" class="mb-4" />
-        <p class="text-sm text-gray-500">(Only PNG files allowed. Titles will be auto generated.)</p>
-      </div>
-    </section>
-
-    <!-- Search Box -->
-    <div class="mb-6">
-      <input
-        type="text"
-        id="searchBox"
-        placeholder="Search PNG..."
-        class="w-full p-3 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
+    <div class="bg-white rounded-xl shadow p-6 mb-10 text-center">
+      <input type="file" id="uploadInput" multiple accept="image/png" class="mb-4 mx-auto" />
+      <p class="text-sm text-gray-500">Only PNG files are allowed. Upload multiple files at once.</p>
     </div>
 
-    <!-- PNG Container -->
-    <div id="pngContainer" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
+    <!-- Image Preview Section -->
+    <div id="imageContainer" class="grid grid-cols-2 md:grid-cols-3 gap-6"></div>
   </div>
 
   <!-- Firebase SDKs -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js";
     import {
       getStorage,
       ref as storageRef,
       uploadBytes,
       getDownloadURL,
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-    import {
-      getFirestore,
-      collection,
-      addDoc,
-      getDocs,
-      query,
-      orderBy,
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    // Your Firebase config here
+    // আপনার Firebase config (firebaseConfig) এখান থেকে কপি করে ব্যবহার করুন
     const firebaseConfig = {
       apiKey: "AIzaSyB7HJI-1y7sp__gSqGU9F38lsooaCEXpFc",
       authDomain: "pngfiledownload.firebaseapp.com",
       projectId: "pngfiledownload",
-      storageBucket: "pngfiledownload.appspot.com",
+      storageBucket: "pngfiledownload.firebasestorage.app",
       messagingSenderId: "9458347777",
-      appId: "1:9458347777:web:c726f6acae6877bcf83500",
-      measurementId: "G-GFC8V25QXJ",
+      appId: "1:9458347777:web:62017497ec436c34f83500",
+      measurementId: "G-GJPBFNLBRB"
     };
 
+    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
     const storage = getStorage(app);
-    const db = getFirestore(app);
 
     const uploadInput = document.getElementById("uploadInput");
-    const pngContainer = document.getElementById("pngContainer");
-    const searchBox = document.getElementById("searchBox");
+    const imageContainer = document.getElementById("imageContainer");
 
-    // Holds PNG objects: {file: URL, category: string, name: string}
-    let pngFiles = [];
-
-    // Utility to generate title from filename or URL
-    function getTitleFromName(name) {
-      return name
-        .replace(/\.[^/.]+$/, "") // Remove extension
-        .replace(/[-_]/g, " ")
-        .replace(/\b\w/g, (l) => l.toUpperCase());
-    }
-
-    // Render PNG cards with optional filter string
-    function renderPNGs(filter = "") {
-      pngContainer.innerHTML = "";
-      const filtered = pngFiles.filter((item) => {
-        const title = getTitleFromName(item.name);
-        return (
-          title.toLowerCase().includes(filter.toLowerCase()) ||
-          (item.category && item.category.toLowerCase().includes(filter.toLowerCase()))
-        );
-      });
-
-      if (filtered.length === 0) {
-        pngContainer.innerHTML = `<p class="col-span-3 text-center text-gray-500">No PNG found.</p>`;
-        return;
-      }
-
-      filtered.forEach((item) => {
-        const title = getTitleFromName(item.name);
-        const html = `
-          <div class="bg-white rounded-xl shadow p-4 text-center">
-            <img src="${item.file}" alt="${title}" class="h-40 object-contain mx-auto mb-4" />
-            <h2 class="text-lg font-semibold mb-1">${title}</h2>
-            <p class="text-sm text-gray-500 mb-2">Category: ${item.category || "Unknown"}</p>
-            <a href="${item.file}" download class="inline-block bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700 transition"
-              >Download</a
-            >
-          </div>
-        `;
-        pngContainer.insertAdjacentHTML("beforeend", html);
-      });
-    }
-
-    // Load PNG list from Firestore
-    async function loadPNGsFromFirestore() {
-      try {
-        const q = query(collection(db, "pngs"), orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(q);
-        pngFiles = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          pngFiles.push({
-            file: data.url,
-            category: data.category,
-            name: data.name,
-          });
-        });
-        renderPNGs(searchBox.value);
-      } catch (error) {
-        console.error("Error loading PNGs:", error);
-      }
-    }
-
-    // Upload handler
+    // ফাইল আপলোড হ্যান্ডলার
     uploadInput.addEventListener("change", async (e) => {
       const files = Array.from(e.target.files);
+
       for (const file of files) {
         if (file.type !== "image/png") {
-          alert("Only PNG files are allowed!");
+          alert(`File "${file.name}" is not a PNG file.`);
           continue;
         }
+
+        // Firebase Storage রেফারেন্স (unique নামের জন্য timestamp যুক্ত করা হলো)
+        const fileRef = storageRef(storage, "pngs/" + Date.now() + "_" + file.name);
+
         try {
-          const fileRef = storageRef(storage, "pngs/" + Date.now() + "_" + file.name);
+          // আপলোড
           await uploadBytes(fileRef, file);
+
+          // ডাউনলোড URL নেয়া
           const downloadURL = await getDownloadURL(fileRef);
 
-          // Save metadata to Firestore
-          await addDoc(collection(db, "pngs"), {
-            url: downloadURL,
-            category: "Uploaded",
-            name: file.name,
-            createdAt: new Date(),
-          });
-        } catch (error) {
-          console.error("Upload failed:", error);
-          alert("Failed to upload " + file.name);
+          // UI এ নতুন ছবি ও ডাউনলোড বাটন যোগ
+          const html = `
+            <div class="bg-white rounded shadow p-4 text-center">
+              <img src="${downloadURL}" alt="${file.name}" class="h-40 object-contain mx-auto mb-2" />
+              <p class="text-sm text-gray-700 truncate">${file.name}</p>
+              <a href="${downloadURL}" download class="inline-block mt-2 px-4 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">Download</a>
+            </div>
+          `;
+
+          imageContainer.insertAdjacentHTML("beforeend", html);
+        } catch (err) {
+          alert(`Failed to upload ${file.name}: ${err.message}`);
         }
       }
-      await loadPNGsFromFirestore();
-      uploadInput.value = ""; // reset input
-    });
 
-    // Search input
-    searchBox.addEventListener("input", (e) => {
-      renderPNGs(e.target.value);
+      // ইনপুট রিসেট
+      uploadInput.value = "";
     });
-
-    // Initial load
-    loadPNGsFromFirestore();
   </script>
 </body>
 </html>
