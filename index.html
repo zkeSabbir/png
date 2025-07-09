@@ -2,35 +2,42 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PNG Upload & Download with Firebase</title>
+  <title>PNG Download Site</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen p-6 font-sans">
-  <div class="max-w-3xl mx-auto">
-    <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Upload PNG to Firebase</h1>
+<body class="bg-gray-100 min-h-screen font-sans">
+  <div class="max-w-6xl mx-auto py-10 px-4">
+
+    <!-- Header -->
+    <header class="text-center mb-10">
+      <h1 class="text-4xl font-bold text-gray-800">Free PNG Gallery</h1>
+      <p class="text-gray-500 mt-2">Search, Preview and Download Transparent PNGs</p>
+    </header>
 
     <!-- Upload Section -->
-    <div class="bg-white rounded-xl shadow p-6 mb-10 text-center">
-      <input type="file" id="uploadInput" multiple accept="image/png" class="mb-4 mx-auto" />
-      <p class="text-sm text-gray-500">Only PNG files are allowed. Upload multiple files at once.</p>
+    <section class="mb-10">
+      <div class="bg-white p-6 rounded-xl shadow text-center">
+        <h2 class="text-xl font-semibold mb-4">Upload PNG Files</h2>
+        <input type="file" id="uploadInput" multiple accept="image/png" class="mb-4" />
+        <p class="text-sm text-gray-500">(Only PNG files allowed. Titles will be auto generated.)</p>
+      </div>
+    </section>
+
+    <!-- Search Box -->
+    <div class="mb-6">
+      <input type="text" id="searchBox" placeholder="Search PNG..." class="w-full p-3 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
     </div>
 
-    <!-- Image Preview Section -->
-    <div id="imageContainer" class="grid grid-cols-2 md:grid-cols-3 gap-6"></div>
+    <!-- PNG Container -->
+    <div id="pngContainer" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
   </div>
 
-  <!-- Firebase SDKs -->
+  <!-- Firebase SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js";
-    import {
-      getStorage,
-      ref as storageRef,
-      uploadBytes,
-      getDownloadURL,
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
-    // আপনার Firebase config (firebaseConfig) এখান থেকে কপি করে ব্যবহার করুন
+    // ✅ Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyB7HJI-1y7sp__gSqGU9F38lsooaCEXpFc",
       authDomain: "pngfiledownload.firebaseapp.com",
@@ -41,52 +48,86 @@
       measurementId: "G-GJPBFNLBRB"
     };
 
-    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
     const storage = getStorage(app);
 
+    const pngContainer = document.getElementById("pngContainer");
+    const searchBox = document.getElementById("searchBox");
     const uploadInput = document.getElementById("uploadInput");
-    const imageContainer = document.getElementById("imageContainer");
 
-    // ফাইল আপলোড হ্যান্ডলার
+    // ✅ PNG List
+    let pngFiles = [
+      { file: "https://www.pngmart.com/files/7/Apple-PNG-Transparent.png", category: "Fruits" },
+      { file: "https://www.pngmart.com/files/16/Shopping-Cart-PNG-Image.png", category: "E-commerce" },
+      { file: "https://www.pngmart.com/files/7/Car-PNG-Image.png", category: "Vehicles" },
+      { file: "https://www.pngmart.com/files/7/Christmas-Tree-PNG-Photo.png", category: "Festival" }
+    ];
+
+    // ✅ Title Extractor
+    function getTitleFromURL(url) {
+      const name = url.split("/").pop().replace(".png", "");
+      return name.replace(/[-_]/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+    }
+
+    // ✅ Render PNGs
+    function renderPNGs(filter = "") {
+      pngContainer.innerHTML = "";
+      const filtered = pngFiles.filter(item => {
+        const title = getTitleFromURL(item.file);
+        return title.toLowerCase().includes(filter.toLowerCase()) || item.category.toLowerCase().includes(filter.toLowerCase());
+      });
+
+      if (filtered.length === 0) {
+        pngContainer.innerHTML = `<p class="col-span-4 text-center text-gray-500">No PNG found.</p>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const title = getTitleFromURL(item.file);
+        const html = `
+          <div class="bg-white rounded-xl shadow p-4 text-center">
+            <img src="${item.file}" alt="${title}" class="h-40 object-contain mx-auto mb-4">
+            <h2 class="text-lg font-semibold mb-1">${title}</h2>
+            <p class="text-sm text-gray-500 mb-2">Category: ${item.category}</p>
+            <a href="${item.file}" download class="inline-block bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700 transition">Download</a>
+          </div>`;
+        pngContainer.insertAdjacentHTML("beforeend", html);
+      });
+    }
+
+    // ✅ Search
+    searchBox.addEventListener("input", (e) => {
+      renderPNGs(e.target.value);
+    });
+
+    // ✅ Upload to Firebase
     uploadInput.addEventListener("change", async (e) => {
       const files = Array.from(e.target.files);
 
       for (const file of files) {
         if (file.type !== "image/png") {
-          alert(`File "${file.name}" is not a PNG file.`);
+          alert(`"${file.name}" is not a PNG file.`);
           continue;
         }
 
-        // Firebase Storage রেফারেন্স (unique নামের জন্য timestamp যুক্ত করা হলো)
-        const fileRef = storageRef(storage, "pngs/" + Date.now() + "_" + file.name);
+        const uniqueName = `pngs/${Date.now()}_${file.name}`;
+        const fileRef = ref(storage, uniqueName);
 
         try {
-          // আপলোড
           await uploadBytes(fileRef, file);
-
-          // ডাউনলোড URL নেয়া
           const downloadURL = await getDownloadURL(fileRef);
-
-          // UI এ নতুন ছবি ও ডাউনলোড বাটন যোগ
-          const html = `
-            <div class="bg-white rounded shadow p-4 text-center">
-              <img src="${downloadURL}" alt="${file.name}" class="h-40 object-contain mx-auto mb-2" />
-              <p class="text-sm text-gray-700 truncate">${file.name}</p>
-              <a href="${downloadURL}" download class="inline-block mt-2 px-4 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">Download</a>
-            </div>
-          `;
-
-          imageContainer.insertAdjacentHTML("beforeend", html);
+          pngFiles.unshift({ file: downloadURL, category: "Uploaded" });
         } catch (err) {
           alert(`Failed to upload ${file.name}: ${err.message}`);
         }
       }
 
-      // ইনপুট রিসেট
+      renderPNGs(searchBox.value);
       uploadInput.value = "";
     });
+
+    renderPNGs();
   </script>
+
 </body>
 </html>
